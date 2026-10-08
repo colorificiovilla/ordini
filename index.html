@@ -362,10 +362,25 @@ function mostraInstalla() {
 window.addEventListener('beforeinstallprompt', function (e) {
   e.preventDefault(); installa = e; mostraInstalla();
 });
+// istruzioni a mano: servono quando il telefono non mostra la finestra di installazione
+function istruzioniMenu() {
+  $('tip-inst').hidden = true; $('tip-chrome').hidden = true;
+  $('tip-txt').innerHTML = '<b>Se non è comparsa nessuna finestra:</b><br>1. tocca i <b>tre puntini ⋮</b> in alto a destra<br>2. tocca <b>Aggiungi a schermata Home</b> (o <b>Installa app</b>)<br>3. tocca <b>Aggiungi</b>';
+  $('tip').hidden = false;
+}
 $('tip-inst').onclick = function () {
-  if (!installa) return;
-  installa.prompt();
-  installa.userChoice.then(function (r) { if (r && r.outcome === 'accepted') { $('tip').hidden = true; mem('tip', '1'); } installa = null; $('tip-inst').hidden = true; });
+  if (!installa) { istruzioniMenu(); return; }
+  var ev = installa; installa = null;
+  // se entro 4 secondi non succede nulla, mostro le istruzioni con il menu
+  var t = setTimeout(istruzioniMenu, 4000);
+  try {
+    ev.prompt();
+    ev.userChoice.then(function (r) {
+      clearTimeout(t);
+      if (r && r.outcome === 'accepted') { $('tip').hidden = true; mem('tip', '1'); }
+      else istruzioniMenu();
+    }, function () { clearTimeout(t); istruzioniMenu(); });
+  } catch (e) { clearTimeout(t); istruzioniMenu(); }
 };
 window.addEventListener('appinstalled', function () { $('tip').hidden = true; mem('tip', '1'); });
 if ('serviceWorker' in navigator) {
