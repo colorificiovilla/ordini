@@ -27,6 +27,7 @@ html,body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.4 var(--f-b
 header{background:var(--accent);color:#fff;padding:calc(16px + env(safe-area-inset-top,0px)) 16px 18px}
 .tip{background:#FFE45C;color:#0F1419;padding:12px 44px 12px 14px;font-size:16px;line-height:1.35;position:relative}
 .tip button.x{position:absolute;right:6px;top:6px;border:0;background:none;font-size:28px;line-height:1;padding:4px 10px;color:#0F1419}
+.tip .inst[hidden]{display:none!important}
 .tip .inst{display:block;width:100%;margin-top:10px;min-height:56px;border:0;border-radius:12px;background:var(--accent);color:#fff;font:800 20px var(--f-body);cursor:pointer}
 .tip .ios{display:flex;align-items:center;gap:10px;margin-top:8px;font-weight:700}
 .tip .ios svg{flex:none;width:30px;height:30px}
@@ -130,7 +131,7 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
     <h1>Nuovo ordine</h1>
     <div class="cli" id="cli"></div>
   </header>
-  <div class="tip" id="tip" hidden><span id="tip-txt"></span><button type="button" class="inst" id="tip-inst" hidden>📲 Installa l'app</button><button type="button" class="x" aria-label="Chiudi" id="tip-x">×</button></div>
+  <div class="tip" id="tip" hidden><span id="tip-txt"></span><button type="button" class="inst" id="tip-inst" hidden>📲 Installa l'app</button><a class="inst" id="tip-chrome" hidden style="text-align:center;line-height:56px;text-decoration:none">Apri in Chrome per installare</a><button type="button" class="x" aria-label="Chiudi" id="tip-x">×</button></div>
   <main>
     <section class="card" aria-labelledby="h-art">
       <h2 id="h-art">Articoli</h2>
@@ -337,15 +338,29 @@ else {
       ? '<b>Mettila sulla schermata Home:</b><span class="ios"><svg viewBox="0 0 24 24" fill="none" stroke="#0F1419" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 11v9h14v-9"/></svg><span>tocca <b>Condividi</b> qui sotto, poi <b>Aggiungi alla schermata Home</b>.</span></span>'
       : '<b>Mettila sulla schermata Home:</b> tocca il menu <b>⋮</b> in alto e poi <b>Aggiungi a schermata Home</b> (o <b>Installa app</b>).';
     $('tip').hidden = false;
+    if (installa) mostraInstalla();
+    // aperta dentro WhatsApp o un'altra app: il pulsante di installazione non arriva -> offro di aprire in Chrome
+    if (!ios && /android/i.test(navigator.userAgent)) {
+      setTimeout(function () {
+        if (installa) return;
+        var url = location.href.replace(/^https?:\/\//, '');
+        $('tip-chrome').href = 'intent://' + url + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.href) + ';end';
+        $('tip-txt').innerHTML = '<b>Per avere l\'icona sulla schermata Home</b> tocca qui sotto. (Se sei già in Chrome: menu <b>⋮</b> → <b>Aggiungi a schermata Home</b>.)';
+        $('tip-chrome').hidden = false; $('tip').hidden = false;
+      }, 2500);
+    }
   }
   $('tip-x').onclick = function () { $('tip').hidden = true; mem('tip', '1'); };
 }
 var installa = null;
-window.addEventListener('beforeinstallprompt', function (e) {
-  e.preventDefault(); installa = e;
+function mostraInstalla() {
   if (!CODICE) return;
   $('tip-txt').innerHTML = '<b>Mettila sulla schermata Home</b> con l\'icona Colorificio Villa:';
+  $('tip-chrome').hidden = true;
   $('tip-inst').hidden = false; $('tip').hidden = false;
+}
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault(); installa = e; mostraInstalla();
 });
 $('tip-inst').onclick = function () {
   if (!installa) return;
