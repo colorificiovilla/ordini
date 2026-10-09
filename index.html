@@ -29,6 +29,8 @@ header{background:var(--accent);color:#fff;padding:calc(16px + env(safe-area-ins
 .tip button.x{position:absolute;right:6px;top:6px;border:0;background:none;font-size:28px;line-height:1;padding:4px 10px;color:#0F1419}
 .tip .inst[hidden]{display:none!important}
 .tip .inst{display:block;width:100%;margin-top:10px;min-height:56px;border:0;border-radius:12px;background:var(--accent);color:#fff;font:800 20px var(--f-body);cursor:pointer}
+.tip .blocca{display:block;margin-top:10px;background:none;border:0;padding:6px 0;font:700 16px var(--f-body);color:#0F1419;text-decoration:underline;cursor:pointer}
+.tip .blocca[hidden]{display:none!important}
 .tip .ios{display:flex;align-items:center;gap:10px;margin-top:8px;font-weight:700}
 .tip .ios svg{flex:none;width:30px;height:30px}
 .brand{display:block;height:30px;width:auto;max-width:70%}
@@ -131,7 +133,7 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
     <h1>Nuovo ordine</h1>
     <div class="cli" id="cli"></div>
   </header>
-  <div class="tip" id="tip" hidden><span id="tip-txt"></span><button type="button" class="inst" id="tip-inst" hidden>📲 Installa l'app</button><a class="inst" id="tip-chrome" hidden style="text-align:center;line-height:56px;text-decoration:none">Apri in Chrome per installare</a><button type="button" class="x" aria-label="Chiudi" id="tip-x">×</button></div>
+  <div class="tip" id="tip" hidden><span id="tip-txt"></span><button type="button" class="inst" id="tip-inst" hidden>📲 Installa l'app</button><button type="button" class="blocca" id="tip-blocca" hidden>Il telefono dice che non è sicura o la blocca?</button><a class="inst" id="tip-chrome" hidden style="text-align:center;line-height:56px;text-decoration:none">Apri in Chrome per installare</a><button type="button" class="x" aria-label="Chiudi" id="tip-x">×</button></div>
   <main>
     <section class="card" aria-labelledby="h-art">
       <h2 id="h-art">Articoli</h2>
@@ -358,17 +360,24 @@ function mostraInstalla() {
   if (!CODICE) return;
   $('tip-txt').innerHTML = '<b>Mettila sulla schermata Home</b> con l\'icona Colorificio Villa:';
   $('tip-chrome').hidden = true;
-  $('tip-inst').hidden = false; $('tip').hidden = false;
+  $('tip-inst').hidden = false; $('tip-blocca').hidden = false; $('tip').hidden = false;
 }
 window.addEventListener('beforeinstallprompt', function (e) {
   e.preventDefault(); installa = e; mostraInstalla();
 });
 // istruzioni a mano: servono quando il telefono non mostra la finestra di installazione
 function istruzioniMenu() {
-  $('tip-inst').hidden = true; $('tip-chrome').hidden = true;
+  $('tip-inst').hidden = true; $('tip-chrome').hidden = true; $('tip-blocca').hidden = true;
   $('tip-txt').innerHTML = '<b>Se non è comparsa nessuna finestra:</b><br>1. tocca i <b>tre puntini ⋮</b> in alto a destra<br>2. tocca <b>Aggiungi a schermata Home</b> (o <b>Installa app</b>)<br>3. tocca <b>Aggiungi</b>';
   $('tip').hidden = false;
 }
+// alcuni telefoni bloccano l'app installata: la scorciatoia non viene bloccata
+function istruzioniScorciatoia() {
+  $('tip-inst').hidden = true; $('tip-chrome').hidden = true; $('tip-blocca').hidden = true;
+  $('tip-txt').innerHTML = '<b>Nessun problema, fai così:</b><br>1. tocca i <b>tre puntini ⋮</b> in alto a destra<br>2. tocca <b>Aggiungi a schermata Home</b><br>3. se chiede, scegli <b>Crea scorciatoia</b> (non "Installa")<br>4. tocca <b>Aggiungi</b><br>L\'icona Colorificio Villa comparirà sulla schermata Home.';
+  $('tip').hidden = false;
+}
+$('tip-blocca').onclick = istruzioniScorciatoia;
 $('tip-inst').onclick = function () {
   if (!installa) { istruzioniMenu(); return; }
   var ev = installa; installa = null;
@@ -378,12 +387,12 @@ $('tip-inst').onclick = function () {
     ev.prompt();
     ev.userChoice.then(function (r) {
       clearTimeout(t);
-      if (r && r.outcome === 'accepted') { $('tip').hidden = true; mem('tip', '1'); }
+      if (r && r.outcome === 'accepted') { $('tip-txt').innerHTML = '<b>Fatto!</b> Trovi l\'icona Colorificio Villa sulla schermata Home.'; $('tip-blocca').hidden = false; setTimeout(function () { $('tip').hidden = true; }, 30000); }
       else istruzioniMenu();
     }, function () { clearTimeout(t); istruzioniMenu(); });
   } catch (e) { clearTimeout(t); istruzioniMenu(); }
 };
-window.addEventListener('appinstalled', function () { $('tip').hidden = true; mem('tip', '1'); });
+window.addEventListener('appinstalled', function () { setTimeout(function () { $('tip').hidden = true; }, 30000); });
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
 }
