@@ -1,5 +1,5 @@
 // Ordini Villa - serve per poter "installare" la pagina come app e aprirla anche con rete debole
-var CACHE = 'ordini-villa-v5';
+var CACHE = 'ordini-villa-v6';
 self.addEventListener('install', function (e) {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(function (c) {

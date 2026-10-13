@@ -288,10 +288,10 @@ function sync() {
 document.addEventListener('change', sync);
 
 /* ---------- foto ---------- */
-var MAX_FOTO = 3, PEZZO = 40000, MAX_B64 = 125000;
+var MAX_FOTO = 3, PEZZO = 25000, MAX_B64 = 110000;   // Google accetta circa 30.000 caratteri per invio
 var foto = [];   // base64 jpeg (senza intestazione)
 var campiFoto = CAMPI_FOTO ? CAMPI_FOTO.split(',').map(function (s) { return s.trim(); }).filter(String) : [];
-if (campiFoto.length) $('sez-foto').hidden = false;
+$('sez-foto').hidden = false;
 function disegnaFoto() {
   $('foto-box').innerHTML = '';
   foto.forEach(function (b64, i) {
@@ -354,17 +354,31 @@ $('b-invia').onclick = function () {
   };
   mem('ref', ordine.referente); if (ordine.telefono) mem('tel', ordine.telefono);
   var b = $('b-invia'); b.disabled = true; b.textContent = 'Invio in corso…';
-  var body = new URLSearchParams();
-  body.append(CAMPO_COD, CODICE);
-  body.append(CAMPO_DATI, JSON.stringify(ordine));
-  if (foto.length) {
-    var tutto = foto.join('|'), n = 0;
-    for (var i = 0; i < tutto.length; i += PEZZO) {
-      if (n >= campiFoto.length) break;
-      body.append(campiFoto[n++], tutto.slice(i, i + PEZZO));
-    }
+  function manda(cod, dati) {
+    var body = new URLSearchParams();
+    body.append(CAMPO_COD, cod);
+    body.append(CAMPO_DATI, dati);
+    return fetch(INVIO_URL, { method: 'POST', mode: 'no-cors', body: body });
   }
-  fetch(INVIO_URL, { method: 'POST', mode: 'no-cors', body: body })
+  // prima le foto, a pezzi; poi l'ordine
+  var pezzi = [];
+  if (foto.length) {
+    var tutto = foto.join('|');
+    for (var i = 0; i < tutto.length; i += PEZZO) pezzi.push(tutto.slice(i, i + PEZZO));
+    ordine.fotoId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+    ordine.fotoParti = pezzi.length;
+  }
+  var k = 0;
+  function prossimo() {
+    if (k < pezzi.length) {
+      k++;
+      b.textContent = 'Invio foto ' + Math.round(k / pezzi.length * 100) + '%…';
+      return manda('FOTO:' + ordine.fotoId + ':' + k + ':' + pezzi.length + ':' + CODICE, pezzi[k - 1]).then(prossimo);
+    }
+    b.textContent = 'Invio ordine…';
+    return manda(CODICE, JSON.stringify(ordine));
+  }
+  prossimo()
     .then(function () {
       b.disabled = false; b.textContent = 'Invia ordine';
       var d = new Date();
@@ -469,27 +483,6 @@ $('tip-inst').onclick = function () {
   } catch (e) { clearTimeout(t); istruzioniMenu(); }
 };
 window.addEventListener('appinstalled', function () { setTimeout(function () { $('tip').hidden = true; }, 30000); });
-// prova tecnica: ?testfoto=1 manda al Modulo testi di varie lunghezze (codice ZZT...) per vedere quali arrivano
-if (/[?&]testfoto=1/.test(location.search)) {
-  (function () {
-    var prove = [['ZZT1K', 1, 1000], ['ZZT5K', 1, 5000], ['ZZT10K', 1, 10000], ['ZZT20K', 1, 20000], ['ZZT30K', 1, 30000], ['ZZT40K', 1, 40000],
-                 ['ZZT9X5K', 9, 5000], ['ZZT9X10K', 9, 10000], ['ZZT9X20K', 9, 20000]];
-    var out = document.createElement('pre'); out.style.cssText = 'position:fixed;inset:0;z-index:99;background:#fff;color:#000;padding:16px;font-size:16px;white-space:pre-wrap;margin:0';
-    out.textContent = 'Prova in corso…\n'; document.body.appendChild(out);
-    var i = 0;
-    function prossima() {
-      if (i >= prove.length) { out.textContent += '\nFINITO. Ora guarda il foglio "Risposte del modulo 1".'; return; }
-      var t = prove[i++], body = new URLSearchParams();
-      body.append(CAMPO_COD, t[0]); body.append(CAMPO_DATI, '{}');
-      var s = new Array(t[2] + 1).join('A');
-      for (var k = 0; k < t[1]; k++) body.append(campiFoto[k], s);
-      fetch(INVIO_URL, { method: 'POST', mode: 'no-cors', body: body })
-        .then(function () { out.textContent += t[0] + ' inviato\n'; }, function () { out.textContent += t[0] + ' ERRORE\n'; })
-        .then(function () { setTimeout(prossima, 1500); });
-    }
-    prossima();
-  })();
-}
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
 }
