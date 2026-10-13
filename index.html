@@ -59,6 +59,11 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
 .riga .x{border:2px solid #C3CBD3;background:#fff;color:var(--muted);font-size:30px;min-height:56px;line-height:1;cursor:pointer;border-radius:8px}
 .riga .x:active{background:var(--sunk)}
 .num{font-size:14px;font-weight:800;color:var(--link);letter-spacing:.06em;grid-column:1 / -1;margin-bottom:-2px}
+.foto-box{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.foto-box .th{position:relative;width:96px;height:96px;border-radius:10px;overflow:hidden;border:2px solid #C3CBD3;background:var(--sunk)}
+.foto-box .th img{width:100%;height:100%;object-fit:cover;display:block}
+.foto-box .th button{position:absolute;top:2px;right:2px;width:34px;height:34px;border-radius:50%;border:0;background:rgba(15,20,25,.75);color:#fff;font-size:22px;line-height:1;cursor:pointer}
+.foto-hint{font-size:14px;color:var(--muted);margin:8px 0 0}
 .add{margin-top:8px;width:100%;min-height:58px;padding:12px;border:2px dashed var(--link);border-radius:10px;background:#fff;color:var(--link);font:700 19px var(--f-body);cursor:pointer}
 
 /* scelte a pulsante */
@@ -141,6 +146,15 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
       <button class="add" type="button" id="b-add">+ Aggiungi un articolo</button>
     </section>
 
+    <section class="card" aria-labelledby="h-foto" id="sez-foto" hidden>
+      <h2 id="h-foto">Foto (facoltativa)</h2>
+      <p class="foto-hint" style="margin-top:0">Per esempio l'etichetta della latta con il codice del colore.</p>
+      <div class="foto-box" id="foto-box"></div>
+      <input type="file" id="foto-in" accept="image/*" hidden>
+      <button class="add" type="button" id="b-foto">📷 Aggiungi una foto</button>
+      <p class="foto-hint" id="foto-msg"></p>
+    </section>
+
     <section class="card" aria-labelledby="h-cons">
       <h2 id="h-cons">Come lo vuoi</h2>
       <div class="seg" role="radiogroup" aria-label="Ritiro o consegna">
@@ -194,7 +208,7 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
     <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
     <h2>Ordine ricevuto</h2>
     <p class="nr" id="ok-nr"></p>
-    <p id="ok-txt">Lo passiamo subito al magazzino. Se ci hai lasciato l'email riceverai la conferma con il numero d'ordine. Ti chiamiamo solo se c'è qualcosa da chiarire.</p>
+    <p id="ok-txt">Lo passiamo subito al magazzino. Ti chiamiamo solo se c'è qualcosa da chiarire.</p>
     <div class="riep" id="ok-riep"></div>
     <button class="btn2" type="button" id="b-nuovo">Fai un altro ordine</button>
   </div>
@@ -205,6 +219,8 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
 var INVIO_URL   = 'https://docs.google.com/forms/d/e/1FAIpQLScW443UKjtY11XwvmODQ3i0C1vKQRVf3-5zQlSdK2ylfJ5wkg/formResponse';
 var CAMPO_COD   = 'entry.1278163335';
 var CAMPO_DATI  = 'entry.314958167';
+// codici dei campi foto (foglio Impostazioni, riga 5); vuoto = foto non attive
+var CAMPI_FOTO  = 'entry.309537366,entry.1344041186,entry.1211050279,entry.1160475764,entry.765028835,entry.829251858,entry.815021413,entry.169648044,entry.579473939';
 /* ==================================================================== */
 var CODICE = '', NOME = '';
 (function () {
@@ -271,25 +287,83 @@ function sync() {
 }
 document.addEventListener('change', sync);
 
+/* ---------- foto ---------- */
+var MAX_FOTO = 3, PEZZO = 40000, MAX_B64 = 125000;
+var foto = [];   // base64 jpeg (senza intestazione)
+var campiFoto = CAMPI_FOTO ? CAMPI_FOTO.split(',').map(function (s) { return s.trim(); }).filter(String) : [];
+if (campiFoto.length) $('sez-foto').hidden = false;
+function disegnaFoto() {
+  $('foto-box').innerHTML = '';
+  foto.forEach(function (b64, i) {
+    var d = document.createElement('div'); d.className = 'th';
+    d.innerHTML = '<img alt="Foto ' + (i + 1) + '"><button type="button" aria-label="Togli foto">×</button>';
+    d.querySelector('img').src = 'data:image/jpeg;base64,' + b64;
+    d.querySelector('button').onclick = function () { foto.splice(i, 1); disegnaFoto(); };
+    $('foto-box').appendChild(d);
+  });
+  $('b-foto').hidden = foto.length >= MAX_FOTO;
+  $('b-foto').textContent = foto.length ? '📷 Aggiungi un\'altra foto' : '📷 Aggiungi una foto';
+}
+// rimpicciolisce la foto: lato lungo max 1280 px, JPEG sotto ~90 KB
+function riduci(file, fatto) {
+  var url = URL.createObjectURL(file), img = new Image();
+  img.onload = function () {
+    var lati = [1280, 1024, 800, 640], qual = [0.72, 0.6, 0.5, 0.42], b64 = '';
+    outer:
+    for (var a = 0; a < lati.length; a++) {
+      var s = Math.min(1, lati[a] / Math.max(img.naturalWidth, img.naturalHeight));
+      var c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+      var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      for (var q = 0; q < qual.length; q++) {
+        b64 = c.toDataURL('image/jpeg', qual[q]).split(',')[1] || '';
+        if (b64 && b64.length <= MAX_B64) break outer;
+      }
+    }
+    URL.revokeObjectURL(url);
+    fatto(b64 && b64.length <= MAX_B64 ? b64 : '');
+  };
+  img.onerror = function () { URL.revokeObjectURL(url); fatto(''); };
+  img.src = url;
+}
+$('b-foto').onclick = function () { $('foto-in').value = ''; $('foto-in').click(); };
+$('foto-in').onchange = function () {
+  var f = this.files && this.files[0];
+  if (!f) return;
+  $('foto-msg').textContent = 'Preparo la foto…';
+  riduci(f, function (b64) {
+    $('foto-msg').textContent = b64 ? '' : 'Questa foto non si riesce a usare: prova a scattarne un\'altra.';
+    if (b64 && foto.length < MAX_FOTO) { foto.push(b64); disegnaFoto(); }
+  });
+};
+
 /* ---------- invio ---------- */
 function errore(t) { $('err').textContent = t || ''; }
 $('b-invia').onclick = function () {
   errore('');
   var righe = leggiRighe();
-  if (!righe.length) { errore('Scrivi almeno un articolo.'); return; }
+  if (!righe.length && !foto.length) { errore('Scrivi almeno un articolo (oppure aggiungi una foto).'); return; }
   if (righe.some(function (r) { return !r.art; })) { errore('In una riga manca la descrizione dell\'articolo.'); return; }
   if (val('quando') === 'data' && !$('data').value) { errore('Scegli la data.'); return; }
   var ordine = {
     articoli: righe, consegna: val('cons'), indirizzo: $('ind').value.trim(),
     quando: val('quando'), data: $('data').value, ora: $('ora').value,
     urgente: $('urg').checked, note: $('note').value.trim(),
-    referente: $('ref').value.trim(), telefono: $('tel').value.trim()
+    referente: $('ref').value.trim(), telefono: $('tel').value.trim(),
+    nfoto: foto.length
   };
   mem('ref', ordine.referente); if (ordine.telefono) mem('tel', ordine.telefono);
   var b = $('b-invia'); b.disabled = true; b.textContent = 'Invio in corso…';
   var body = new URLSearchParams();
   body.append(CAMPO_COD, CODICE);
   body.append(CAMPO_DATI, JSON.stringify(ordine));
+  if (foto.length) {
+    var tutto = foto.join('|'), n = 0;
+    for (var i = 0; i < tutto.length; i += PEZZO) {
+      if (n >= campiFoto.length) break;
+      body.append(campiFoto[n++], tutto.slice(i, i + PEZZO));
+    }
+  }
   fetch(INVIO_URL, { method: 'POST', mode: 'no-cors', body: body })
     .then(function () {
       b.disabled = false; b.textContent = 'Invia ordine';
@@ -306,14 +380,16 @@ function conferma(r, o) {
   $('ok-nr').textContent = 'Inviato alle ' + r.ora;
   var q = QUANDO[o.quando] + (o.quando === 'data' && o.data ? ' ' + o.data.split('-').reverse().join('/') : '') + (o.ora ? ', ore ' + o.ora : '');
   $('ok-riep').innerHTML =
-    '<table><tr><th style="text-align:center">Q.TÀ</th><th>PEZZ.</th><th>ARTICOLO</th><th>COLORE</th></tr>' +
+    (o.articoli.length ? '<table><tr><th style="text-align:center">Q.TÀ</th><th>PEZZ.</th><th>ARTICOLO</th><th>COLORE</th></tr>' +
     o.articoli.map(function (a) { return '<tr><td class="q">' + esc(a.qta) + '</td><td>' + esc(a.pezz) + '</td><td>' + esc(a.art) + '</td><td class="c">' + esc(a.col) + '</td></tr>'; }).join('') +
-    '</table><div class="meta">' + esc(CONS[o.consegna]) + (o.consegna === 'consegna' && o.indirizzo ? ': ' + esc(o.indirizzo) : '') + ' · ' + esc(q) +
-    (o.urgente ? ' · <b style="color:#C42D2D">URGENTE</b>' : '') + (o.note ? '<br>Note: ' + esc(o.note) : '') + '</div>';
+    '</table>' : '') + '<div class="meta">' + esc(CONS[o.consegna]) + (o.consegna === 'consegna' && o.indirizzo ? ': ' + esc(o.indirizzo) : '') + ' · ' + esc(q) +
+    (o.urgente ? ' · <b style="color:#C42D2D">URGENTE</b>' : '') + (o.note ? '<br>Note: ' + esc(o.note) : '') +
+    (o.nfoto ? '<br>📷 ' + o.nfoto + (o.nfoto > 1 ? ' foto allegate' : ' foto allegata') : '') + '</div>';
   show('s-ok');
 }
 $('b-nuovo').onclick = function () {
   $('righe').innerHTML = ''; nRighe = 0; addRiga(); addRiga();
+  foto = []; disegnaFoto(); $('foto-msg').textContent = '';
   ['ind', 'data', 'ora', 'note'].forEach(function (k) { $(k).value = ''; });
   $('urg').checked = false; $('c-ritiro').checked = true; $('q-subito').checked = true; sync();
   show('s-form');
