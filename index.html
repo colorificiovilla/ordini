@@ -127,7 +127,8 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
   <div class="center">
     <h2>Il tuo codice cliente</h2>
     <p>Scrivi il codice di 8 caratteri che trovi nel messaggio che ti abbiamo mandato, oppure incolla qui il link intero. Serve una volta sola.</p>
-    <input type="text" id="cod-in" maxlength="16" autocapitalize="characters" autocomplete="off" placeholder="es. K7F2Q9XA" style="text-align:center;letter-spacing:.12em;margin-top:14px">
+    <input type="text" id="cod-in" maxlength="400" autocapitalize="characters" autocomplete="off" placeholder="es. K7F2Q9XA" style="text-align:center;letter-spacing:.12em;margin-top:14px">
+    <p id="cod-err" style="color:#B42318;font-weight:600;margin:10px 0 0" role="alert"></p>
     <button class="btn2" type="button" id="cod-ok" style="width:100%">Entra</button>
     <p style="margin-top:18px">Non hai il codice? Chiedilo a Colorificio Villa.</p>
   </div>
@@ -231,14 +232,19 @@ var CAMPO_DATI  = 'entry.314958167';
 var CAMPI_FOTO  = 'entry.309537366,entry.1344041186,entry.1211050279,entry.1160475764,entry.765028835,entry.829251858,entry.815021413,entry.169648044,entry.579473939';
 /* ==================================================================== */
 var CODICE = '', NOME = '';
+// i codici cliente sono sempre di 8 caratteri (lettere e numeri)
+var CODICE_OK = /^[A-Z0-9]{8}$/;
 (function () {
   var p = {};
   try { p = Object.fromEntries(new URLSearchParams(location.search)); } catch (e) {}
   CODICE = String(p.c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
   NOME = String(p.n || '').slice(0, 120);
   try {
+    if (CODICE && !CODICE_OK.test(CODICE)) CODICE = '';
     if (CODICE) { localStorage.setItem('ov_c', CODICE); localStorage.setItem('ov_n', NOME); }
     else { CODICE = localStorage.getItem('ov_c') || ''; NOME = localStorage.getItem('ov_n') || ''; }
+    // un codice sbagliato salvato in passato non vale: si richiede quello giusto
+    if (CODICE && !CODICE_OK.test(CODICE)) { CODICE = ''; NOME = ''; localStorage.removeItem('ov_c'); localStorage.removeItem('ov_n'); }
   } catch (e) {}
 })();
 var $ = function (id) { return document.getElementById(id); };
@@ -422,8 +428,11 @@ addRiga(); addRiga();
 $('ref').value = mem('ref');
 $('cod-ok').onclick = function () {
   var v = $('cod-in').value, m = /[?&]c=([A-Za-z0-9]+)/.exec(v);   // va bene anche il link intero incollato
-  var c = (m ? m[1] : v).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
-  if (c.length < 6) { $('cod-in').focus(); return; }
+  var c = (m ? m[1] : v).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!CODICE_OK.test(c)) {
+    $('cod-err').textContent = 'Codice non valido: sono 8 caratteri, per esempio K7F2Q9XA. Puoi anche incollare il link intero del messaggio.';
+    $('cod-in').focus(); return;
+  }
   try { localStorage.setItem('ov_c', c); } catch (e) {}
   location.href = location.pathname + '?c=' + encodeURIComponent(c);
 };
