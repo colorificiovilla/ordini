@@ -84,6 +84,7 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
 .voc .riga2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .voc .riga2 button{min-height:52px;border-radius:10px;border:2px solid var(--line);background:#fff;font:700 17px var(--f-body);color:var(--ink);cursor:pointer}
 .voc-hint{font-size:15px;color:var(--muted);margin:8px 0 0}
+.voc .fatto{font:800 21px var(--f-body);color:var(--ok);margin:12px 0 0;text-align:center}
 
 /* scelte a pulsante */
 .seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px}
@@ -166,9 +167,10 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
       <button type="button" class="mic" id="b-mic">🎤 Registra l'ordine vocale</button>
       <div id="voc-rec" hidden><p class="tempo" id="voc-t">0:00</p></div>
       <div id="voc-ok" hidden>
+        <p class="fatto" id="voc-dur">✅ Vocale registrato</p>
         <audio id="voc-play" controls preload="metadata"></audio>
         <div class="riga2"><button type="button" id="b-voc-rifai">🔄 Rifai</button><button type="button" id="b-voc-via">🗑 Togli</button></div>
-        <p class="voc-hint">Vocale pronto: premi <b>Invia ordine</b> in basso. Se vuoi, scegli anche ritiro o consegna e quando.</p>
+        <p class="voc-hint">Puoi riascoltarlo qui sopra. Per mandarlo premi <b>Invia ordine</b> in basso. Se vuoi, scegli anche ritiro o consegna e quando.</p>
       </div>
       <p class="voc-hint" id="voc-msg" role="alert" style="color:#C42D2D;font-weight:700"></p>
     </section>
@@ -411,6 +413,7 @@ $('b-mic').onclick = function () {
         var b64 = String(fr.result).split(',')[1] || '';
         if (b64.length > MAX_B64_VOC) { vocMsg('Vocale troppo lungo: rifallo più breve.'); return; }
         voc = b64; vocMime = tipo.split(';')[0];
+        $('voc-dur').textContent = '✅ Vocale registrato (' + fmt(recT) + ')';
         $('voc-play').src = URL.createObjectURL(blob);
         $('voc-ok').hidden = false; $('b-mic').hidden = true;
       };
