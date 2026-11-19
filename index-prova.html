@@ -20,8 +20,6 @@
 <meta name="apple-mobile-web-app-title" content="Ordini Villa">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0B233F">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
 <style>
 /* Mobile: intestazione blu col nome del cliente, schede bianche, pulsante Invia fisso in basso */
 :root{
@@ -84,6 +82,8 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
 .voc .riga2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .voc .riga2 button{min-height:52px;border-radius:10px;border:2px solid var(--line);background:#fff;font:700 17px var(--f-body);color:var(--ink);cursor:pointer}
 .voc-hint{font-size:15px;color:var(--muted);margin:8px 0 0}
+.priv{text-align:center;font-size:15px;margin:6px 0 0}
+.priv a{color:var(--link)}
 .voc .fatto{font:800 21px var(--f-body);color:var(--ok);margin:12px 0 0;text-align:center}
 
 /* scelte a pulsante */
@@ -229,6 +229,7 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
       <label class="f" for="note">Note</label>
       <textarea id="note" placeholder="es. chiamare prima di passare"></textarea>
     </section>
+    <p class="priv"><a href="privacy.html" target="_blank" rel="noopener">Informativa privacy</a></p>
   </main>
   <div class="bar">
     <div class="err" id="err" role="alert"></div>
