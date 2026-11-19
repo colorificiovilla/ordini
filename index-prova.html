@@ -400,7 +400,14 @@ $('b-mic').onclick = function () {
     var opz = { audioBitsPerSecond: 32000 };
     if (TIPO_REC) opz.mimeType = TIPO_REC;
     try { rec = new MediaRecorder(st, opz); } catch (e) { rec = new MediaRecorder(st); }
-    rec.ondataavailable = function (e) { if (e.data && e.data.size) recPezzi.push(e.data); };
+    var recByte = 0;   // l'iPhone registra file piu' pesanti: ci si ferma prima di superare il limite di invio
+    rec.ondataavailable = function (e) {
+      if (e.data && e.data.size) { recPezzi.push(e.data); recByte += e.data.size; }
+      if (recByte > 700000 && rec.state === 'recording') {
+        fermaRec();
+        setTimeout(function () { vocMsg('Hai raggiunto la lunghezza massima: il vocale si è fermato qui. Se manca qualcosa, scrivilo nelle note.'); }, 400);
+      }
+    };
     rec.onstop = function () {
       clearInterval(recTimer);
       try { recStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
