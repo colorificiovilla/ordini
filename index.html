@@ -20,8 +20,6 @@
 <meta name="apple-mobile-web-app-title" content="Ordini Villa">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0B233F">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
 <style>
 /* Mobile: intestazione blu col nome del cliente, schede bianche, pulsante Invia fisso in basso */
 :root{
@@ -73,6 +71,20 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
 .foto-box .th button{position:absolute;top:2px;right:2px;width:34px;height:34px;border-radius:50%;border:0;background:rgba(15,20,25,.75);color:#fff;font-size:22px;line-height:1;cursor:pointer}
 .foto-hint{font-size:14px;color:var(--muted);margin:8px 0 0}
 .add{margin-top:8px;width:100%;min-height:58px;padding:12px;border:2px dashed var(--link);border-radius:10px;background:#fff;color:var(--link);font:700 19px var(--f-body);cursor:pointer}
+
+/* ordine vocale */
+.voc .mic{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:72px;margin-top:6px;border:0;border-radius:14px;background:#7B3FB5;color:#fff;font:800 21px var(--f-body);cursor:pointer}
+.voc .mic.rec{background:var(--urg);animation:pul 1.2s ease-in-out infinite}
+.voc .mic[hidden]{display:none}
+@keyframes pul{50%{opacity:.7}}
+.voc .tempo{font:700 30px var(--f-disp);margin:10px 0 0;text-align:center}
+.voc audio{width:100%;margin-top:12px}
+.voc .riga2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.voc .riga2 button{min-height:52px;border-radius:10px;border:2px solid var(--line);background:#fff;font:700 17px var(--f-body);color:var(--ink);cursor:pointer}
+.voc-hint{font-size:15px;color:var(--muted);margin:8px 0 0}
+.priv{text-align:center;font-size:15px;margin:6px 0 0}
+.priv a{color:var(--link)}
+.voc .fatto{font:800 21px var(--f-body);color:var(--ok);margin:12px 0 0;text-align:center}
 
 /* scelte a pulsante */
 .seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px}
@@ -149,6 +161,20 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
   </header>
   <div class="tip" id="tip" hidden><span id="tip-txt"></span><button type="button" class="inst" id="tip-inst" hidden>📲 Installa l'app</button><button type="button" class="blocca" id="tip-blocca" hidden>Il telefono dice che non è sicura o la blocca?</button><a class="inst" id="tip-chrome" hidden style="text-align:center;line-height:56px;text-decoration:none">Apri in Chrome per installare</a><button type="button" class="x" aria-label="Chiudi" id="tip-x">×</button></div>
   <main>
+    <section class="card voc" aria-labelledby="h-voc" id="sez-voc" hidden>
+      <h2 id="h-voc">Ordine vocale</h2>
+      <p class="voc-hint" style="margin-top:0">Non vuoi scrivere? Tocca il pulsante e detta l'ordine: articoli, quantità, formati e colori. Poi tocca di nuovo per fermare (massimo 2 minuti).</p>
+      <button type="button" class="mic" id="b-mic">🎤 Registra l'ordine vocale</button>
+      <div id="voc-rec" hidden><p class="tempo" id="voc-t">0:00</p></div>
+      <div id="voc-ok" hidden>
+        <p class="fatto" id="voc-dur">✅ Vocale registrato</p>
+        <audio id="voc-play" controls preload="metadata"></audio>
+        <div class="riga2"><button type="button" id="b-voc-rifai">🔄 Rifai</button><button type="button" id="b-voc-via">🗑 Togli</button></div>
+        <p class="voc-hint">Puoi riascoltarlo qui sopra. Per mandarlo premi <b>Invia ordine</b> in basso. Se vuoi, scegli anche ritiro o consegna e quando.</p>
+      </div>
+      <p class="voc-hint" id="voc-msg" role="alert" style="color:#C42D2D;font-weight:700"></p>
+    </section>
+
     <section class="card" aria-labelledby="h-art">
       <h2 id="h-art">Articoli</h2>
       <div id="righe"></div>
@@ -203,6 +229,7 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
       <label class="f" for="note">Note</label>
       <textarea id="note" placeholder="es. chiamare prima di passare"></textarea>
     </section>
+    <p class="priv"><a href="privacy.html" target="_blank" rel="noopener">Informativa privacy</a></p>
   </main>
   <div class="bar">
     <div class="err" id="err" role="alert"></div>
@@ -351,12 +378,78 @@ $('foto-in').onchange = function () {
   });
 };
 
+/* ---------- ordine vocale ---------- */
+var MAX_SEC = 120, MAX_B64_VOC = 975000;   // 39 pezzi da 25.000 caratteri al massimo
+var voc = null, vocMime = '', rec = null, recPezzi = [], recT = 0, recTimer = null, recStream = null;
+function tipoRec() {
+  if (!window.MediaRecorder) return null;
+  var t = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+  for (var i = 0; i < t.length; i++) { try { if (MediaRecorder.isTypeSupported(t[i])) return t[i]; } catch (e) {} }
+  return '';
+}
+var TIPO_REC = tipoRec();
+if (TIPO_REC !== null && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) $('sez-voc').hidden = false;
+function vocMsg(t) { $('voc-msg').textContent = t || ''; }
+function fmt(s) { return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+function fermaRec() { if (rec && rec.state !== 'inactive') rec.stop(); }
+$('b-mic').onclick = function () {
+  if (rec && rec.state === 'recording') { fermaRec(); return; }
+  vocMsg('');
+  navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }).then(function (st) {
+    recStream = st; recPezzi = [];
+    var opz = { audioBitsPerSecond: 32000 };
+    if (TIPO_REC) opz.mimeType = TIPO_REC;
+    try { rec = new MediaRecorder(st, opz); } catch (e) { rec = new MediaRecorder(st); }
+    var recByte = 0;   // l'iPhone registra file piu' pesanti: ci si ferma prima di superare il limite di invio
+    rec.ondataavailable = function (e) {
+      if (e.data && e.data.size) { recPezzi.push(e.data); recByte += e.data.size; }
+      if (recByte > 700000 && rec.state === 'recording') {
+        fermaRec();
+        setTimeout(function () { vocMsg('Hai raggiunto la lunghezza massima: il vocale si è fermato qui. Se manca qualcosa, scrivilo nelle note.'); }, 400);
+      }
+    };
+    rec.onstop = function () {
+      clearInterval(recTimer);
+      try { recStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+      $('b-mic').classList.remove('rec'); $('voc-rec').hidden = true;
+      $('b-mic').textContent = '🎤 Registra l\'ordine vocale';
+      var tipo = rec.mimeType || TIPO_REC || 'audio/webm';
+      var blob = new Blob(recPezzi, { type: tipo });
+      if (recT < 2 || blob.size < 2000) { vocMsg('Vocale troppo corto: riprova e parla dopo aver toccato il pulsante.'); return; }
+      var fr = new FileReader();
+      fr.onload = function () {
+        var b64 = String(fr.result).split(',')[1] || '';
+        if (b64.length > MAX_B64_VOC) { vocMsg('Vocale troppo lungo: rifallo più breve.'); return; }
+        voc = b64; vocMime = tipo.split(';')[0];
+        $('voc-dur').textContent = '✅ Vocale registrato (' + fmt(recT) + ')';
+        $('voc-play').src = URL.createObjectURL(blob);
+        $('voc-ok').hidden = false; $('b-mic').hidden = true;
+      };
+      fr.readAsDataURL(blob);
+    };
+    rec.start(1000); recT = 0;
+    $('b-mic').classList.add('rec'); $('b-mic').textContent = '⏹ Tocca per fermare';
+    $('voc-rec').hidden = false; $('voc-t').textContent = '0:00 / ' + fmt(MAX_SEC);
+    recTimer = setInterval(function () { recT++; $('voc-t').textContent = fmt(recT) + ' / ' + fmt(MAX_SEC); if (recT >= MAX_SEC) fermaRec(); }, 1000);
+  }).catch(function () {
+    vocMsg('Il telefono non ha dato il permesso di usare il microfono: consentilo nelle impostazioni del browser e riprova.');
+  });
+};
+function togliVoc() {
+  voc = null; vocMime = '';
+  $('voc-play').removeAttribute('src'); $('voc-ok').hidden = true;
+  $('b-mic').hidden = false; $('b-mic').textContent = '🎤 Registra l\'ordine vocale'; vocMsg('');
+}
+$('b-voc-via').onclick = togliVoc;
+$('b-voc-rifai').onclick = function () { togliVoc(); $('b-mic').click(); };
+
 /* ---------- invio ---------- */
 function errore(t) { $('err').textContent = t || ''; }
 $('b-invia').onclick = function () {
   errore('');
   var righe = leggiRighe();
-  if (!righe.length && !foto.length) { errore('Scrivi almeno un articolo (oppure aggiungi una foto).'); return; }
+  if (rec && rec.state === 'recording') { errore('Prima ferma la registrazione del vocale.'); return; }
+  if (!righe.length && !foto.length && !voc) { errore('Scrivi almeno un articolo, oppure registra un ordine vocale o aggiungi una foto.'); return; }
   if (righe.some(function (r) { return !r.art; })) { errore('In una riga manca la descrizione dell\'articolo.'); return; }
   if (val('quando') === 'data' && !$('data').value) { errore('Scegli la data.'); return; }
   var ordine = {
@@ -364,7 +457,7 @@ $('b-invia').onclick = function () {
     quando: val('quando'), data: $('data').value, ora: $('ora').value,
     urgente: $('urg').checked, note: $('note').value.trim(),
     referente: $('ref').value.trim(), telefono: $('tel').value.trim(),
-    nfoto: foto.length
+    nfoto: foto.length, vocale: !!voc
   };
   mem('ref', ordine.referente); if (ordine.telefono) mem('tel', ordine.telefono);
   var b = $('b-invia'); b.disabled = true; b.textContent = 'Invio in corso…';
@@ -382,12 +475,21 @@ $('b-invia').onclick = function () {
     ordine.fotoId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
     ordine.fotoParti = pezzi.length;
   }
+  var invii = pezzi.map(function (p, i) { return { cod: 'FOTO:' + ordine.fotoId + ':' + (i + 1) + ':' + pezzi.length + ':' + CODICE, dati: p }; });
+  // vocale: viaggia a pezzi sullo stesso canale delle foto, con un suo codice
+  if (voc) {
+    var pv = [];
+    for (var j = 0; j < voc.length; j += PEZZO) pv.push(voc.slice(j, j + PEZZO));
+    ordine.audioId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+    ordine.audioParti = pv.length; ordine.audioMime = vocMime;
+    pv.forEach(function (p, i) { invii.push({ cod: 'FOTO:' + ordine.audioId + ':' + (i + 1) + ':' + pv.length + ':' + CODICE, dati: p }); });
+  }
   var k = 0;
   function prossimo() {
-    if (k < pezzi.length) {
+    if (k < invii.length) {
       k++;
-      b.textContent = 'Invio foto ' + Math.round(k / pezzi.length * 100) + '%…';
-      return manda('FOTO:' + ordine.fotoId + ':' + k + ':' + pezzi.length + ':' + CODICE, pezzi[k - 1]).then(prossimo);
+      b.textContent = (voc ? 'Invio vocale ' : 'Invio foto ') + Math.round(k / invii.length * 100) + '%…';
+      return manda(invii[k - 1].cod, invii[k - 1].dati).then(prossimo);
     }
     b.textContent = 'Invio ordine…';
     return manda(CODICE, JSON.stringify(ordine));
@@ -412,12 +514,13 @@ function conferma(r, o) {
     o.articoli.map(function (a) { return '<tr><td class="q">' + esc(a.qta) + '</td><td>' + esc(a.pezz) + '</td><td>' + esc(a.art) + '</td><td class="c">' + esc(a.col) + '</td></tr>'; }).join('') +
     '</table>' : '') + '<div class="meta">' + esc(CONS[o.consegna]) + (o.consegna === 'consegna' && o.indirizzo ? ': ' + esc(o.indirizzo) : '') + ' · ' + esc(q) +
     (o.urgente ? ' · <b style="color:#C42D2D">URGENTE</b>' : '') + (o.note ? '<br>Note: ' + esc(o.note) : '') +
-    (o.nfoto ? '<br>📷 ' + o.nfoto + (o.nfoto > 1 ? ' foto allegate' : ' foto allegata') : '') + '</div>';
+    (o.nfoto ? '<br>📷 ' + o.nfoto + (o.nfoto > 1 ? ' foto allegate' : ' foto allegata') : '') +
+    (o.vocale ? '<br>🎤 Ordine vocale: lo ascoltiamo e ti chiamiamo solo se c\'è qualcosa da chiarire.' : '') + '</div>';
   show('s-ok');
 }
 $('b-nuovo').onclick = function () {
   $('righe').innerHTML = ''; nRighe = 0; addRiga(); addRiga();
-  foto = []; disegnaFoto(); $('foto-msg').textContent = '';
+  foto = []; disegnaFoto(); $('foto-msg').textContent = ''; togliVoc();
   ['ind', 'data', 'ora', 'note'].forEach(function (k) { $(k).value = ''; });
   $('urg').checked = false; $('c-ritiro').checked = true; $('q-subito').checked = true; sync();
   show('s-form');
